@@ -224,3 +224,109 @@ snippet kwargs
 	**kwargs${1:,}${0}
 snippet akw
 	*args, **kwargs${1:,}${0}
+
+
+snippet target
+	python_binary (
+	  name = "adstats_loadtest",
+	  main_module = "admarket.adstats.scripts.loadtest.adstats_loadtest",
+	  srcs = [
+		"adstats_loadtest.py",
+		"testdata.py",
+	  ],
+	  deps = [
+		":stats",
+		"@/admarket/libadmarket/if:python",
+		"@/admarket/adstats/if:python",
+		"@/thrift/lib/py",
+	  ],
+	)
+
+	python_library (
+	  name = "stats",
+	  srcs = [
+		"stats.py"
+	  ],
+	)
+
+	python_unittest(
+	  name="stats_tests-py2",
+	  py_version="<3",
+	  srcs=[
+		"stats_tests.py",
+	  ],
+	  deps=[
+		"@/libfb/py:testutil",
+		":stats",
+	  ],
+	  needed_coverage=[
+		(0.86, '@/:admarket/adstats/stats'),
+	  ],
+	)
+
+snippet smc
+	from ServiceRouter import (ServiceRouter, TServiceRouterException)
+	from tutorials.thrift.ChatRoomService import (ChatRoomService, ttypes)
+	from tutorials.thrift.ChatRoomService.ttypes import *
+
+	def main():
+		sr = ServiceRouter()
+		try:
+			client = sr.getClient2(ChatRoomService.Client,
+								   "tutorial.ChatRoomService.lab")
+
+			# Send a message
+			sendRequest = ChatRoomServiceSendMessageRequest()
+			client.sendMessage(sendRequest)
+
+			# Get all the messages
+			getRequest = ChatRoomServiceGetMessagesRequest()
+			response = client.getMessages(getRequest)
+			for messagesList in response.messages:
+				print("Message: ", messagesList.message,
+					  " Sender: ", messagesList.sender)
+		except TServiceRouterException as e:
+			print("Request failed: ", e.message)
+
+snippet thread
+	child_threads = []
+    task_queue = TaskQueue()
+
+    # The AgentServerThread needs to have a reference to the LauncherThread
+    # so that thrift server calls can query the status of individual running
+    # child-threads.
+    launcher_t = LauncherThread(task_queue=task_queue, mode='db')
+    child_threads.append(launcher_t)
+    child_threads.append(ast_t)
+    child_threads.append(BackupLogThread())
+    child_threads.append(SurveyorThread(mode='db'))
+    child_threads.append(StatsThread(task_queue=task_queue))
+    child_threads.append(JanitorThread())
+
+	for t in child_threads:
+		if not t.is_alive():
+			t.start()
+
+    while len(child_threads):
+        # We don't need to check threads that often, unless we're shutting down
+        stop.wait(timeout=30)
+
+        # Keep an eye on all our threads
+        for t in child_threads[:]:
+            if stop.is_set():
+                t.stop(stop_hard)
+
+            if not t.is_alive():
+                if t.exception:
+                    msg = 'Thread %s exited unexpectedly. Reason %s' % (t.name,
+                          t.exception)
+                    log.error(msg)
+                    raise Exception(msg)
+                else:
+                    # Clean exit, shutting down
+                    child_threads.remove(t)
+
+        log.debug('All %d child threads are running', len(child_threads))
+        if not stop.is_set() and not thriftIsAlive():
+            log.warning('Thrift server unresponsive to periodic check')
+

@@ -1,0 +1,21 @@
+snippet fbar
+	importThrift('fbar/schema/hostgroup.thrift', "*")
+	importPython('fbar/common/collections.cinc','*')
+	importPython('fbar/common/helpers.cinc','*')
+
+	hostgroup_list = HostgroupList(
+		hostgroups = {
+			'hostgroup1' : \
+			Hostgroup(
+				selectors = Selectors(tiers = ['host_prefix(${0:host_prefix})']),
+				remediations = standard_collection,
+				rate_limits = RateLimitMap(
+					repairs = [RateLimit(hosts_count=5, minutes=60)],
+					reboots = [RateLimit(hosts_count=500, minutes=60)],
+					),
+				)
+			},
+			oncall_team_shortnames = set(['${2:team_short_name}']),
+			owners = ['${3:junyilu}'],  # owners will be deprecated soon   
+		)
+	exportIfLast(hostgroup_list)
